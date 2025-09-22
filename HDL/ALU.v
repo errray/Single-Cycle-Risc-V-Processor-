@@ -1,0 +1,81 @@
+module ALU( input  [31:0] A_in, 
+			   input  [31:0] B_in, 
+			   input  [3:0] ALU_Sel, 	
+			   output [31:0] ALU_Out, 
+			   output reg Carry_Out,Equal,less_than,
+			   output Zero, 
+			   output reg Overflow = 1'b0 );
+			   
+	reg [31:0] ALU_Result; 
+	reg [32:0] temp; 
+	reg [32:0] twos_com;
+	
+	assign ALU_Out = ALU_Result;
+	assign Zero    = ( ALU_Result == 0 );
+	//assign less_than_branch=((INSTR[6:2]==11000)?(INSTR[13])?(DATA_A<DATA_B):(OVF^OUT[WIDTH-1]):0);//If inst 13. bit is 1 in branch than
+
+	always @(*) begin 
+		Overflow  = 1'b0;
+		Carry_Out = 1'b0;
+		
+		case(ALU_Sel)
+			4'b0000: //and
+				ALU_Result = A_in & B_in;
+			
+			4'b0001: //or
+				ALU_Result = A_in | B_in;
+			
+			4'b0010: begin 
+				ALU_Result = $signed(A_in) + $signed(B_in);
+				temp = { 1'b0 , A_in } + { 1'b0 , B_in };
+				Carry_Out = temp[32];
+				if ( (A_in[31] & B_in[31] & ~ALU_Out[31]) |
+					 (~A_in[31] & ~B_in[31] & ALU_Out[31] ))
+					 Overflow = 1'b1;
+				else 
+					Overflow = 1'b0;
+			end 
+			
+			4'b0011: begin //Signed Subtraction with Overflow checking
+				ALU_Result = $signed(A_in) - $signed(B_in); 
+				twos_com   = ~(B_in) + 1'b1;
+				
+				if( (A_in[31] & twos_com[31] & ~ALU_Out[31]) |
+					(~A_in[31] & ~twos_com[31] & ALU_Out[31]) )
+					Overflow = 1'b1;
+				else 
+					Overflow = 1'b0; 
+			
+			end
+			
+			4'b0100: //Signed less than or equal comparison
+				ALU_Result = ($signed(A_in) < $signed(B_in))?32'd1:32'd0;
+			
+			4'b0101: //exor
+				ALU_Result = (A_in ^ B_in);
+			
+			4'b0110: //UNsigned less than or equal comparison
+				ALU_Result = ($unsigned(A_in) < $unsigned(B_in))?32'd1:32'd0;
+			4'b0111://Less than comparison unsigned
+			     less_than=($unsigned(A_in) < $unsigned(B_in))?1'd1:1'd0;
+			4'b1000://Less than comparison signed
+			     less_than=($signed(A_in) < $signed(B_in))?1'd1:1'd0;
+
+			4'b1001: //Comparison
+				Equal = ( A_in == B_in )?1'b1:1'b0;
+			4'b1010://Add signed
+			     ALU_Result = $signed(A_in) + $signed(B_in);
+			4'b1011://Add
+			     ALU_Result = (A_in) +(B_in);
+			4'b1100:
+			     ALU_Result = (A_in) -(B_in);
+			4'b1101://MOVE RD2
+			     ALU_Result = (B_in);
+			4'b1110://MOVE RD1
+			     ALU_Result = (A_in);			
+				 
+			default: ALU_Result = A_in + B_in;
+		endcase
+	end
+endmodule	
+			
